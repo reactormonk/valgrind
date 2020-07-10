@@ -173,6 +173,7 @@ Number of snapshots: 50
 #include "pub_tool_gdbserver.h"
 
 #include "pub_tool_clreq.h"           // For {MALLOC,FREE}LIKE_BLOCK
+#include "massif.h"
 
 //------------------------------------------------------------*/
 //--- Overview of operation                                ---*/
@@ -277,6 +278,11 @@ static ULong total_allocs_deallocs_szB = 0;
 // earlier due to new_mem_startup so this isn't relevant.
 //
 static Bool have_started_executing_code = False;
+
+// Whether to take automatic snapshots. Useful if you want to trigger
+// snapshots via client requests.
+// TODO make this configurable somehow
+static Bool take_automatic_snapshots = False;
 
 //------------------------------------------------------------//
 //--- Alloc fns                                            ---//
@@ -991,6 +997,8 @@ maybe_take_snapshot(SnapshotKind kind, const HChar* what)
    // declaration in /usr/include/time.h on Darwin.
    Time      my_time = get_time();
 
+   if (!take_automatic_snapshots) { return; }
+
    switch (kind) {
     case Normal: 
       // Only do a snapshot if it's time.
@@ -1624,6 +1632,7 @@ static void print_monitor_help ( void )
 /* Forward declaration.
    return True if request recognised, False otherwise */
 static Bool handle_gdb_monitor_command (ThreadId tid, HChar *req);
+static Bool handle_snapshot_monitor_command (const HChar *filename, Bool detailed);
 static Bool ms_handle_client_request ( ThreadId tid, UWord* argv, UWord* ret )
 {
    switch (argv[0]) {
@@ -1657,6 +1666,14 @@ static Bool ms_handle_client_request ( ThreadId tid, UWord* argv, UWord* ret )
      else
        *ret = 0;
      return handled;
+   }
+   case VG_USERREQ__MAKE_SNAPSHOT: {
+      const HChar *filename = (HChar*)argv[1];
+      return handle_snapshot_monitor_command(filename, /*detailed*/False);
+   }
+   case VG_USERREQ__MAKE_DETAILED_SNAPSHOT: {
+      const HChar *filename = (HChar*)argv[1];
+      return handle_snapshot_monitor_command(filename, /*detailed*/True);
    }
 
    default:
@@ -1816,16 +1833,14 @@ static void write_snapshots_array_to_file(void)
    VG_(free)(massif_out_file);
 }
 
-static void handle_snapshot_monitor_command (const HChar *filename,
+static Bool handle_snapshot_monitor_command (const HChar *filename,
                                              Bool detailed)
 {
    Snapshot snapshot;
 
    if (!clo_pages_as_heap && !have_started_executing_code) {
       // See comments of variable have_started_executing_code.
-      VG_(gdb_printf) 
-         ("error: cannot take snapshot before execution has started\n");
-      return;
+      return False;
    }
 
    clear_snapshot(&snapshot, /* do_sanity_check */ False);
@@ -1835,6 +1850,7 @@ static void handle_snapshot_monitor_command (const HChar *filename,
                             &snapshot,
                             1);
    delete_snapshot(&snapshot);
+   return True;
 }
 
 static void handle_all_snapshots_monitor_command (const HChar *filename)
@@ -1893,13 +1909,21 @@ static Bool handle_gdb_monitor_command (ThreadId tid, HChar *req)
    case  1: { /* snapshot */
       HChar* filename;
       filename = VG_(strtok_r) (NULL, " ", &ssaveptr);
-      handle_snapshot_monitor_command (filename, False /* detailed */);
+      Bool running = handle_snapshot_monitor_command (filename, False /* detailed */);
+      if (!running) {
+         VG_(gdb_printf) 
+            ("error: cannot take snapshot before execution has started\n");
+      }
       return True;
    }
    case  2: { /* detailed_snapshot */
       HChar* filename;
       filename = VG_(strtok_r) (NULL, " ", &ssaveptr);
-      handle_snapshot_monitor_command (filename, True /* detailed */);
+      Bool running = handle_snapshot_monitor_command (filename, True /* detailed */);
+      if (!running) {
+         VG_(gdb_printf) 
+            ("error: cannot take snapshot before execution has started\n");
+      }
       return True;
    }
    case  3: { /* all_snapshots */
