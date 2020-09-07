@@ -1633,6 +1633,7 @@ static void print_monitor_help ( void )
    return True if request recognised, False otherwise */
 static Bool handle_gdb_monitor_command (ThreadId tid, HChar *req);
 static Bool handle_snapshot_monitor_command (const HChar *filename, Bool detailed);
+static void ms_xtmemory_report ( const HChar* filename, Bool fini );
 static Bool ms_handle_client_request ( ThreadId tid, UWord* argv, UWord* ret )
 {
    switch (argv[0]) {
@@ -1674,6 +1675,11 @@ static Bool ms_handle_client_request ( ThreadId tid, UWord* argv, UWord* ret )
    case VG_USERREQ__MAKE_DETAILED_SNAPSHOT: {
       const HChar *filename = (HChar*)argv[1];
       return handle_snapshot_monitor_command(filename, /*detailed*/True);
+   }
+   case VG_USERREQ__XTMEMORY_REPORT: {
+      const HChar *filename = (HChar*)argv[1];
+      ms_xtmemory_report(filename, /*fini*/ False);
+      return 0;
    }
 
    default:

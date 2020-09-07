@@ -70,7 +70,8 @@
 typedef
    enum {
       VG_USERREQ__MAKE_SNAPSHOT = VG_USERREQ_TOOL_BASE('M','S'),
-      VG_USERREQ__MAKE_DETAILED_SNAPSHOT
+      VG_USERREQ__MAKE_DETAILED_SNAPSHOT,
+      VG_USERREQ__XTMEMORY_REPORT
    } Vg_MassifClientRequest;
 
 /* Return values:
@@ -84,9 +85,15 @@ typedef
                                     0, 0, 0, 0 )
 
 #define VALGRIND_MAKE_DETAILED_SNAPSHOT(filename)                       \
-    (unsigned)VALGRIND_DO_CLIENT_REQUEST_EXPR(0,               \
+    (unsigned)VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                        \
                                     VG_USERREQ__MAKE_DETAILED_SNAPSHOT, \
-                                    filename,                  \
+                                    filename,                           \
+                                    0, 0, 0, 0 )
+
+#define VALGRIND_XTMEMORY_REPORT(filename)                       \
+    (unsigned)VALGRIND_DO_CLIENT_REQUEST_EXPR(0,                 \
+                                    VG_USERREQ__XTMEMORY_REPORT, \
+                                    filename,                    \
                                     0, 0, 0, 0 )
 
 #endif /* __MASSIF_H */
